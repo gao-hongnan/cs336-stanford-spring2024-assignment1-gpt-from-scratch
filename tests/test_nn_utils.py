@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from .adapters import run_cross_entropy, run_gradient_clipping, run_softmax
 
 
-def test_softmax_matches_pytorch():
+def test_softmax_matches_pytorch() -> None:
     x = torch.tensor(
         [
             [0.4655, 0.8303, 0.9608, 0.9656, 0.6840],
@@ -26,7 +26,7 @@ def test_softmax_matches_pytorch():
     )
 
 
-def test_cross_entropy():
+def test_cross_entropy() -> None:
     inputs = torch.tensor(
         [
             [
@@ -69,7 +69,7 @@ def test_cross_entropy():
     )
 
 
-def test_gradient_clipping():
+def test_gradient_clipping() -> None:
     tensors = [torch.randn((5, 5)) for _ in range(6)]
     max_norm = 1e-2
 

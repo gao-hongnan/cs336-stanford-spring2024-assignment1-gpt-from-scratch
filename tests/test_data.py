@@ -8,14 +8,14 @@ import pytest
 from .adapters import run_get_batch
 
 
-def test_get_batch():
+def test_get_batch() -> None:
     dataset = np.arange(0, 100)
     context_length = 7
     batch_size = 32
     device = "cpu"
 
     # Sanity check to make sure that the random samples are indeed somewhat random.
-    starting_indices = Counter()
+    starting_indices: Counter[int] = Counter()
     num_iters = 1000
     for _ in range(num_iters):
         x, y = run_get_batch(

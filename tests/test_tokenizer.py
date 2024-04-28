@@ -6,7 +6,7 @@ import json
 import os
 import resource
 import sys
-from typing import Optional
+from typing import Any, Callable, Generator, Iterable, Optional, TypeVar
 
 import psutil
 import pytest
@@ -18,10 +18,12 @@ from .common import FIXTURES_PATH, gpt2_bytes_to_unicode
 VOCAB_PATH = FIXTURES_PATH / "gpt2_vocab.json"
 MERGES_PATH = FIXTURES_PATH / "gpt2_merges.txt"
 
+F = TypeVar("F", bound=Callable[..., Any])
 
-def memory_limit(max_mem):
-    def decorator(f):
-        def wrapper(*args, **kwargs):
+
+def memory_limit(max_mem: int) -> Callable[[F], Callable[..., Any]]:
+    def decorator(f: F) -> Callable[..., Any]:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             process = psutil.Process(os.getpid())
             prev_limits = resource.getrlimit(resource.RLIMIT_AS)
             resource.setrlimit(
@@ -42,10 +44,10 @@ def memory_limit(max_mem):
 
 
 def get_tokenizer_from_vocab_merges_path(
-    vocab_path: str | os.PathLike,
-    merges_path: str | os.PathLike,
+    vocab_path: str | os.PathLike[str],
+    merges_path: str | os.PathLike[str],
     special_tokens: Optional[list[str]] = None,
-):
+) -> Any:
     gpt2_byte_decoder = {v: k for k, v in gpt2_bytes_to_unicode().items()}
     with open(vocab_path) as vocab_f:
         gpt2_vocab = json.load(vocab_f)
@@ -79,7 +81,7 @@ def get_tokenizer_from_vocab_merges_path(
     return get_tokenizer(vocab, merges, special_tokens)
 
 
-def test_roundtrip_empty():
+def test_roundtrip_empty() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -90,7 +92,7 @@ def test_roundtrip_empty():
     assert test_string == decoded_string
 
 
-def test_empty_matches_tiktoken():
+def test_empty_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
@@ -109,7 +111,7 @@ def test_empty_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == test_string
 
 
-def test_roundtrip_single_character():
+def test_roundtrip_single_character() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -120,7 +122,7 @@ def test_roundtrip_single_character():
     assert test_string == decoded_string
 
 
-def test_single_character_matches_tiktoken():
+def test_single_character_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
@@ -139,7 +141,7 @@ def test_single_character_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == test_string
 
 
-def test_roundtrip_single_unicode_character():
+def test_roundtrip_single_unicode_character() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -150,7 +152,7 @@ def test_roundtrip_single_unicode_character():
     assert test_string == decoded_string
 
 
-def test_single_unicode_character_matches_tiktoken():
+def test_single_unicode_character_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
@@ -166,7 +168,7 @@ def test_single_unicode_character_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == test_string
 
 
-def test_roundtrip_ascii_string():
+def test_roundtrip_ascii_string() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -177,7 +179,7 @@ def test_roundtrip_ascii_string():
     assert test_string == decoded_string
 
 
-def test_ascii_string_matches_tiktoken():
+def test_ascii_string_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
@@ -195,7 +197,7 @@ def test_ascii_string_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == test_string
 
 
-def test_roundtrip_unicode_string():
+def test_roundtrip_unicode_string() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -206,7 +208,7 @@ def test_roundtrip_unicode_string():
     assert test_string == decoded_string
 
 
-def test_unicode_string_matches_tiktoken():
+def test_unicode_string_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
@@ -221,7 +223,7 @@ def test_unicode_string_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == test_string
 
 
-def test_roundtrip_unicode_string_with_special_tokens():
+def test_roundtrip_unicode_string_with_special_tokens() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
     )
@@ -235,7 +237,7 @@ def test_roundtrip_unicode_string_with_special_tokens():
     assert test_string == decoded_string
 
 
-def test_unicode_string_with_special_tokens_matches_tiktoken():
+def test_unicode_string_with_special_tokens_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
@@ -252,7 +254,7 @@ def test_unicode_string_with_special_tokens_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == test_string
 
 
-def test_overlapping_special_tokens():
+def test_overlapping_special_tokens() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -269,7 +271,7 @@ def test_overlapping_special_tokens():
     assert tokenizer.decode(ids) == test_string
 
 
-def test_address_roundtrip():
+def test_address_roundtrip() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -281,7 +283,7 @@ def test_address_roundtrip():
     assert tokenizer.decode(ids) == corpus_contents
 
 
-def test_address_matches_tiktoken():
+def test_address_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
@@ -298,7 +300,7 @@ def test_address_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == corpus_contents
 
 
-def test_german_roundtrip():
+def test_german_roundtrip() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -310,7 +312,7 @@ def test_german_roundtrip():
     assert tokenizer.decode(ids) == corpus_contents
 
 
-def test_german_matches_tiktoken():
+def test_german_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
@@ -327,7 +329,7 @@ def test_german_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == corpus_contents
 
 
-def test_tinystories_sample_roundtrip():
+def test_tinystories_sample_roundtrip() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -339,7 +341,7 @@ def test_tinystories_sample_roundtrip():
     assert tokenizer.decode(ids) == corpus_contents
 
 
-def test_tinystories_matches_tiktoken():
+def test_tinystories_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
@@ -357,7 +359,7 @@ def test_tinystories_matches_tiktoken():
     assert reference_tokenizer.decode(reference_ids) == corpus_contents
 
 
-def test_encode_iterable_tinystories_sample_roundtrip():
+def test_encode_iterable_tinystories_sample_roundtrip() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -371,7 +373,7 @@ def test_encode_iterable_tinystories_sample_roundtrip():
     assert tokenizer.decode(all_ids) == corpus_contents
 
 
-def test_encode_iterable_tinystories_matches_tiktoken():
+def test_encode_iterable_tinystories_matches_tiktoken() -> None:
     reference_tokenizer = tiktoken.get_encoding("gpt2")
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
@@ -396,7 +398,7 @@ def test_encode_iterable_tinystories_matches_tiktoken():
     not sys.platform.startswith("linux"),
     reason="rlimit support for non-linux systems is spotty.",
 )
-def test_encode_iterable_memory_usage():
+def test_encode_iterable_memory_usage() -> None:
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
@@ -414,7 +416,7 @@ def test_encode_iterable_memory_usage():
 @pytest.mark.xfail(
     reason="Tokenizer.encode is expected to take more memory than allotted (1MB)."
 )
-def test_encode_memory_usage():
+def test_encode_memory_usage() -> None:
     """
     We expect this test to fail, since Tokenizer.encode is not expected to be memory efficient.
     """
@@ -428,7 +430,9 @@ def test_encode_memory_usage():
 
 
 @memory_limit(int(1e6))
-def _encode_iterable(tokenizer, iterable):
+def _encode_iterable(
+    tokenizer: Any, iterable: Iterable[str]
+) -> Generator[int, None, None]:
     """
     We place tokenizer.encode_iterable into a separate function so we can limit memory
     for just this function. We set the memory limit to 1MB.
@@ -437,7 +441,7 @@ def _encode_iterable(tokenizer, iterable):
 
 
 @memory_limit(int(1e6))
-def _encode(tokenizer, text):
+def _encode(tokenizer: Any, text: str) -> list[int]:
     """
     We place tokenizer.encode into a separate function so we can limit memory
     for just this function. We set the memory limit to 1MB.

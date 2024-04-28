@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+from typing import Any, Mapping
+
 import numpy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pathlib import Path
 
 from .adapters import get_adamw_cls, run_load_checkpoint, run_save_checkpoint
 
 
 class _TestNet(nn.Module):
-    def __init__(self, d_input: int = 100, d_output: int = 10):
+    def __init__(self, d_input: int = 100, d_output: int = 10) -> None:
         super(_TestNet, self).__init__()
         self.fc1 = nn.Linear(d_input, 200)
         self.fc2 = nn.Linear(200, 100)
         self.fc3 = nn.Linear(100, d_output)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
@@ -22,8 +27,11 @@ class _TestNet(nn.Module):
 
 
 def are_optimizers_equal(
-    optimizer1_state_dict, optimizer2_state_dict, atol=1e-8, rtol=1e-5
-):
+    optimizer1_state_dict: Mapping[str, Any],
+    optimizer2_state_dict: Mapping[str, Any],
+    atol: float = 1e-8,
+    rtol: float = 1e-5,
+) -> bool:
     # Check if the keys of the main dictionaries are equal (e.g., 'state', 'param_groups')
     if set(optimizer1_state_dict.keys()) != set(optimizer2_state_dict.keys()):
         return False
@@ -57,14 +65,14 @@ def are_optimizers_equal(
     return True
 
 
-def test_checkpointing(tmp_path):
+def test_checkpointing(tmp_path: str | Path) -> None:
     torch.manual_seed(42)
     d_input = 100
     d_output = 10
     num_iters = 10
 
     model = _TestNet(d_input=d_input, d_output=d_output)
-    optimizer = get_adamw_cls()(
+    optimizer = get_adamw_cls()( # type: ignore[call-arg]
         model.parameters(),
         lr=1e-3,
         weight_decay=0.01,
@@ -94,7 +102,7 @@ def test_checkpointing(tmp_path):
 
     # Load the model back again
     new_model = _TestNet(d_input=d_input, d_output=d_output)
-    new_optimizer = get_adamw_cls()(
+    new_optimizer = get_adamw_cls()( # type: ignore[call-arg]
         new_model.parameters(),
         lr=1e-3,
         weight_decay=0.01,

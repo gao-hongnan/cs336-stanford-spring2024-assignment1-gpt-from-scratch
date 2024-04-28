@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import os
-from typing import IO, BinaryIO, Iterable, Optional, Type
+from typing import IO, Any, BinaryIO, Iterable, Optional, Type
 
+import numpy as np
 import numpy.typing as npt
 import torch
 
@@ -350,7 +351,7 @@ def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
 
 
 def run_get_batch(
-    dataset: npt.NDArray, batch_size: int, context_length: int, device: str
+    dataset: npt.NDArray[Any], batch_size: int, context_length: int, device: str
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Given a dataset (a 1D numpy array of integers) and a desired batch size and
@@ -393,7 +394,9 @@ def run_softmax(in_features: torch.FloatTensor, dim: int) -> torch.FloatTensor:
     raise NotImplementedError
 
 
-def run_cross_entropy(inputs: torch.FloatTensor, targets: torch.LongTensor):
+def run_cross_entropy(
+    inputs: torch.FloatTensor, targets: torch.LongTensor
+) -> torch.Tensor:
     """Given a tensor of inputs and targets, compute the average cross-entropy
     loss across examples.
 
@@ -411,7 +414,9 @@ def run_cross_entropy(inputs: torch.FloatTensor, targets: torch.LongTensor):
     raise NotImplementedError
 
 
-def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float):
+def run_gradient_clipping(
+    parameters: Iterable[torch.nn.Parameter], max_l2_norm: float
+) -> None:
     """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
 
     Args:
@@ -439,7 +444,7 @@ def run_get_lr_cosine_schedule(
     min_learning_rate: float,
     warmup_iters: int,
     cosine_cycle_iters: int,
-):
+) -> float:
     """
     Given the parameters of a cosine learning rate decay schedule (with linear
     warmup) and an iteration number, return the learning rate at the given
@@ -470,8 +475,8 @@ def run_save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     iteration: int,
-    out: str | os.PathLike | BinaryIO | IO[bytes],
-):
+    out: str | os.PathLike[str] | BinaryIO | IO[bytes],
+) -> None:
     """
     Given a model, optimizer, and an iteration number, serialize them to disk.
 
@@ -490,10 +495,10 @@ def run_save_checkpoint(
 
 
 def run_load_checkpoint(
-    src: str | os.PathLike | BinaryIO | IO[bytes],
+    src: str | os.PathLike[str] | BinaryIO | IO[bytes],
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
-):
+) -> int:
     """
     Given a serialized checkpoint (path or file-like object), restore the
     serialized state to the given model and optimizer.
@@ -517,7 +522,7 @@ def get_tokenizer(
     vocab: dict[int, bytes],
     merges: list[tuple[bytes, bytes]],
     special_tokens: Optional[list[str]] = None,
-):
+) -> Any:
     """Given a vocabulary, a list of merges, and a list of special tokens,
     return a BPE tokenizer that uses the provided vocab, merges, and special tokens.
 
@@ -540,11 +545,11 @@ def get_tokenizer(
 
 
 def run_train_bpe(
-    input_path: str | os.PathLike,
+    input_path: str | os.PathLike[str],
     vocab_size: int,
     special_tokens: list[str],
-    **kwargs,
-):
+    **kwargs: Any,
+) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """Given the path to an input corpus, run train a BPE tokenizer and
     output its vocabulary and merges.
 
