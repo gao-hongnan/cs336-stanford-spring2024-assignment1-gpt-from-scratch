@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import os
-from typing import IO, Any, BinaryIO, Iterable, Optional, Type
+from typing import IO, BinaryIO, Iterable, Optional, Type, cast
 
-import numpy as np
 import numpy.typing as npt
 import torch
+
+from core.tokenizer import Tokenizer
 
 
 def run_positionwise_feedforward(
@@ -44,7 +45,15 @@ def run_positionwise_feedforward(
     # You can also manually assign the weights
     # my_ffn.w1.weight.data = weights["w1.weight"]
     # my_ffn.w2.weight.data = weights["w2.weight"]
-    raise NotImplementedError
+    from core.layers import PositionwiseFeedForward
+
+    ffn = PositionwiseFeedForward(
+        d_model=d_model, d_ff=d_ff, bias=False, activation_name="gelu", dropout=0.0
+    )
+    ffn.ffn.context_fc.weight.data = weights["w1.weight"]
+    ffn.ffn.context_projection.weight.data = weights["w2.weight"]
+    out = ffn(z=in_features)
+    return cast(torch.FloatTensor, out)
 
 
 def run_scaled_dot_product_attention(
@@ -86,7 +95,15 @@ def run_scaled_dot_product_attention(
         with the output of running your scaled dot product attention
         implementation with the provided key, query, and value tensors.
     """
-    raise NotImplementedError
+    from core.layers import ScaledDotProductAttention
+
+    mask = mask.unsqueeze(0).unsqueeze(0)
+    scaled_dot_product_attention = ScaledDotProductAttention(dropout=pdrop)
+    context_vector, _attention_weights = scaled_dot_product_attention(
+        query=Q, key=K, value=V, mask=mask
+    )
+    context_vector = context_vector.squeeze(0).squeeze(0)
+    return cast(torch.FloatTensor, context_vector)
 
 
 def run_multihead_self_attention(
@@ -136,7 +153,35 @@ def run_multihead_self_attention(
         torch.FloatTensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    from core.layers import CausalMultiHeadSelfAttention
+
+    B, T, D = in_features.size()
+    # note no bias, you can print the weights and realise that.
+
+    mha = CausalMultiHeadSelfAttention(
+        d_model=d_model,
+        num_heads=num_heads,
+        context_length=T,
+        attn_pdrop=attn_pdrop,
+        resid_pdrop=0.0,
+        bias=False,
+    )
+
+    mha.W_Q.weight.data = torch.cat(
+        [weights[f"q_heads.{i}.weight"] for i in range(num_heads)], dim=0
+    )
+    mha.W_K.weight.data = torch.cat(
+        [weights[f"k_heads.{i}.weight"] for i in range(num_heads)], dim=0
+    )
+    mha.W_V.weight.data = torch.cat(
+        [weights[f"v_heads.{i}.weight"] for i in range(num_heads)], dim=0
+    )
+
+    # Load output projection weights
+    mha.context_projection.weight.data = weights["output_proj.weight"]
+
+    out = mha(z=in_features)
+    return cast(torch.FloatTensor, out)
 
 
 def run_transformer_block(
@@ -208,7 +253,32 @@ def run_transformer_block(
         FloatTensor of shape (batch_size, sequence_length, d_model) with the output of
         running the Transformer block on the input features.
     """
-    raise NotImplementedError
+    from core.config import GPTConfig
+    from core.layers import GPTBlock
+
+    gpt_config = GPTConfig(
+        d_model=d_model,
+        d_ff=d_ff,
+        num_heads=num_heads,
+        context_length=in_features.size(1),
+        attn_pdrop=attn_pdrop,
+        resid_pdrop=residual_pdrop,
+        vocab_size=-100,  # dummy value
+        num_blocks=-100,  # dummy value
+    )
+
+    gpt_block = GPTBlock(config=gpt_config)
+    gpt_block.rmns_1.gain.data = weights["ln1.weight"]
+    gpt_block.rmns_2.gain.data = weights["ln2.weight"]
+    gpt_block.ffn.ffn.context_fc.weight.data = weights["ffn.w1.weight"]
+    gpt_block.ffn.ffn.context_projection.weight.data = weights["ffn.w2.weight"]
+    gpt_block.attn.W_Q.weight.data = weights["attn.q_proj.weight"]
+    gpt_block.attn.W_K.weight.data = weights["attn.k_proj.weight"]
+    gpt_block.attn.W_V.weight.data = weights["attn.v_proj.weight"]
+    gpt_block.attn.context_projection.weight.data = weights["attn.output_proj.weight"]
+
+    out = gpt_block(z=in_features)
+    return cast(torch.FloatTensor, out)
 
 
 def run_transformer_lm(
@@ -288,7 +358,7 @@ def run_transformer_lm(
                 applied in the transformer block.
                 Shape is (d_model,).
             - `ln_final.weight`
-                Weights of affine transform for RMSNorm applied to the output of the final transformer block.
+                Weights of affine transform for layernorm applied to the output of the final transformer block.
                 Shape is (d_model, ).
             - `lm_head.weight`
                 Weights of the language model output embedding.
@@ -301,7 +371,50 @@ def run_transformer_lm(
         FloatTensor of shape (batch size, sequence_length, vocab_size) with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    from core.config import GPTConfig
+    from core.layers import GPT
+
+    gpt_config = GPTConfig(
+        d_model=d_model,
+        d_ff=d_ff,
+        num_heads=num_heads,
+        context_length=context_length,
+        attn_pdrop=attn_pdrop,
+        resid_pdrop=residual_pdrop,
+        vocab_size=vocab_size,
+        num_blocks=num_layers,
+    )
+
+    gpt = GPT(config=gpt_config)
+
+    context_length = in_indices.size(1)
+    if context_length < gpt.config.context_length:
+        gpt.crop_context_length(context_length)
+        gpt.config.context_length = context_length
+
+    gpt.backbone.token_embeddings.weight.data = weights["token_embeddings.weight"]
+    gpt.backbone.position_embeddings.weight.data = weights["position_embeddings.weight"]
+    gpt.backbone.ln_final.gain.data = weights["ln_final.weight"]
+    gpt.head.weight.data = weights["lm_head.weight"]
+
+    for i in range(num_layers):
+        gpt.blocks[i].rmns_1.gain.data = weights[f"layers.{i}.ln1.weight"]
+        gpt.blocks[i].rmns_2.gain.data = weights[f"layers.{i}.ln2.weight"]
+        gpt.blocks[i].ffn.ffn.context_fc.weight.data = weights[
+            f"layers.{i}.ffn.w1.weight"
+        ]
+        gpt.blocks[i].ffn.ffn.context_projection.weight.data = weights[
+            f"layers.{i}.ffn.w2.weight"
+        ]
+        gpt.blocks[i].attn.W_Q.weight.data = weights[f"layers.{i}.attn.q_proj.weight"]
+        gpt.blocks[i].attn.W_K.weight.data = weights[f"layers.{i}.attn.k_proj.weight"]
+        gpt.blocks[i].attn.W_V.weight.data = weights[f"layers.{i}.attn.v_proj.weight"]
+        gpt.blocks[i].attn.context_projection.weight.data = weights[
+            f"layers.{i}.attn.output_proj.weight"
+        ]
+
+    out = gpt(in_indices=in_indices)
+    return cast(torch.FloatTensor, out)
 
 
 def run_rmsnorm(
@@ -315,7 +428,7 @@ def run_rmsnorm(
 
     Args:
         d_model: int
-            The dimensionality of the RMSNorm input.
+            The dimensionality of the layernorm input.
         eps: float, default is 1e-5
             A value added to the denominator for numerical stability.
         weights: dict[str, torch.FloatTensor]
@@ -330,9 +443,17 @@ def run_rmsnorm(
 
     Returns:
         FloatTensor of with the same shape as `in_features` with the output of running
-        RMSNorm of the `in_features`.
+        layernorm of the `in_features`.
     """
-    raise NotImplementedError
+    from omnivault.transformer.modules.layers.normalization import RMSNorm
+
+    rms_norm = RMSNorm(d_model=d_model, eps=eps)
+
+    # This overwrites `self.reset_parameters()` in `RMSNorm` so we can load the
+    # reference weights, to do sanity check.
+    rms_norm.gain.data = weights["weight"]
+    rms_norm_out = rms_norm(x=in_features)
+    return cast(torch.FloatTensor, rms_norm_out)
 
 
 def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
@@ -347,11 +468,15 @@ def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
         FloatTensor of with the same shape as `in_features` with the output of applying
         GELU to each element.
     """
-    raise NotImplementedError
+    from omnivault.modules.activation import GELU
+
+    gelu = GELU()
+    out = gelu(x=in_features)
+    return cast(torch.FloatTensor, out)
 
 
 def run_get_batch(
-    dataset: npt.NDArray[Any], batch_size: int, context_length: int, device: str
+    dataset: npt.NDArray, batch_size: int, context_length: int, device: str
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Given a dataset (a 1D numpy array of integers) and a desired batch size and
@@ -374,7 +499,14 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    from core.data import get_batch
+
+    return get_batch(
+        dataset=dataset,
+        batch_size=batch_size,
+        context_length=context_length,
+        device_type=device,
+    )
 
 
 def run_softmax(in_features: torch.FloatTensor, dim: int) -> torch.FloatTensor:
@@ -391,12 +523,16 @@ def run_softmax(in_features: torch.FloatTensor, dim: int) -> torch.FloatTensor:
         FloatTensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    from omnivault.modules.activation import SoftmaxStable
+
+    softmax = SoftmaxStable(dim=dim)
+    out = softmax(z=in_features)
+    return cast(torch.FloatTensor, out)
 
 
 def run_cross_entropy(
     inputs: torch.FloatTensor, targets: torch.LongTensor
-) -> torch.Tensor:
+) -> torch.FloatTensor:
     """Given a tensor of inputs and targets, compute the average cross-entropy
     loss across examples.
 
@@ -411,7 +547,12 @@ def run_cross_entropy(
     Returns:
         Tensor of shape () with the average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    from omnivault.modules.loss import CrossEntropyLoss
+
+    ce = CrossEntropyLoss()
+    loss = ce(logits=inputs, targets=targets)
+
+    return cast(torch.FloatTensor, loss)
 
 
 def run_gradient_clipping(
@@ -428,14 +569,18 @@ def run_gradient_clipping(
     Returns:
         None
     """
-    raise NotImplementedError
+    from omnivault.modules.nn_utils import gradient_clipping
+
+    return gradient_clipping(parameters=parameters, max_norm=max_l2_norm)
 
 
 def get_adamw_cls() -> Type[torch.optim.Optimizer]:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    from omnivault.optimizers.adamw import AdamW
+
+    return AdamW
 
 
 def run_get_lr_cosine_schedule(
@@ -468,14 +613,24 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    from omnivault.schedulers.cosine_annealing_warmup import (
+        _cosine_schedule_with_warmup_and_post_annealing_lr_lambda,
+    )
+
+    return _cosine_schedule_with_warmup_and_post_annealing_lr_lambda(
+        iter=it,
+        max_learning_rate=max_learning_rate,
+        min_learning_rate=min_learning_rate,
+        warmup_iters=warmup_iters,
+        cosine_cycle_iters=cosine_cycle_iters,
+    )
 
 
 def run_save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     iteration: int,
-    out: str | os.PathLike[str] | BinaryIO | IO[bytes],
+    out: str | os.PathLike | BinaryIO | IO[bytes],
 ) -> None:
     """
     Given a model, optimizer, and an iteration number, serialize them to disk.
@@ -491,14 +646,16 @@ def run_save_checkpoint(
         out: str | os.PathLike | BinaryIO | IO[bytes]
             Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
+    from core.utils import save_checkpoint
+
+    save_checkpoint(model, optimizer, iteration, out)
 
 
 def run_load_checkpoint(
-    src: str | os.PathLike[str] | BinaryIO | IO[bytes],
+    src: str | os.PathLike | BinaryIO | IO[bytes],
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
-) -> int:
+) -> None:
     """
     Given a serialized checkpoint (path or file-like object), restore the
     serialized state to the given model and optimizer.
@@ -515,15 +672,17 @@ def run_load_checkpoint(
     Returns:
         int, the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    from core.utils import load_checkpoint
+
+    return load_checkpoint(src, model, optimizer)
 
 
 def get_tokenizer(
     vocab: dict[int, bytes],
     merges: list[tuple[bytes, bytes]],
     special_tokens: Optional[list[str]] = None,
-) -> Any:
-    """Given a vocabulary, a list of merges, and a list of special tokens,
+) -> Tokenizer:
+    """Given the path to a JSON vocab, a file with BPE merges, and a list of special tokens,
     return a BPE tokenizer that uses the provided vocab, merges, and special tokens.
 
     Args:
@@ -541,14 +700,14 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    return Tokenizer(vocab=vocab, merges=merges, special_tokens=special_tokens)
 
 
 def run_train_bpe(
-    input_path: str | os.PathLike[str],
+    input_path: str | os.PathLike,
     vocab_size: int,
     special_tokens: list[str],
-    **kwargs: Any,
+    **kwargs,
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """Given the path to an input corpus, run train a BPE tokenizer and
     output its vocabulary and merges.
@@ -565,7 +724,7 @@ def run_train_bpe(
             they are treated as any other string.
 
     Returns:
-        Tuple of (vocab, merges):
+        Tuple of (vocab, merges) -> None:
             vocab: dict[int, bytes]
                 The trained tokenizer vocabulary, a mapping from int (token ID in the vocabulary)
                 to bytes (token bytes)
@@ -574,4 +733,10 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    raise NotImplementedError
+    from core.tokenizer import Tokenizer
+
+    with open(input_path, "rb") as f:
+        text = f.read()
+        tokenizer = Tokenizer.from_corpus(text, vocab_size, special_tokens)
+
+    return tokenizer.vocab, tokenizer.merges

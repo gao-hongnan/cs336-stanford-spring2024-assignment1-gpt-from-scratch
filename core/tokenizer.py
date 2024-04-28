@@ -10,7 +10,9 @@ from typing import Dict, Generator, Iterable, Iterator, List, Literal, Tuple, Ty
 
 import numpy as np
 import regex as re
+from memory_profiler import profile
 from rich.pretty import pprint
+from core.profiler import timer_block, profile_and_save_stats
 
 from rustsrc import RustTokenizer, train_bpe
 
@@ -30,14 +32,10 @@ DATASET_VALID_PATHS = {
     "owt": "data/owt_valid.txt",
     "tinystories": "data/TinyStoriesV2-GPT4-valid.txt",
 }
-TEST_DATASET_PATH = "data/taylorswift.txt"
+TEST_DATASET_PATH = "tests/fixtures/corpus.en"
 
 
-@contextmanager
-def timer(block_name: str) -> Generator[None, None, None]:
-    start = time.time()
-    yield
-    logger.info(f"{block_name} took {time.time() - start} seconds")
+
 
 
 @dataclass
@@ -71,7 +69,7 @@ class Tokenizer:
         if special_tokens is None:
             special_tokens = []
 
-        with timer("Training the bpe model"):
+        with timer_block("Training the bpe model"):
             vocab, merges = train_bpe(text, vocab_size, special_tokens)
         return cls(vocab, merges, special_tokens)
 
@@ -116,8 +114,8 @@ class Tokenizer:
     def decode(self, tokens: List[int] | np.ndarray) -> str:
         return self.rust_tokenizer.decode(tokens)
 
-
-def train_on_dataset(dataset_name: Literal["owt", "tinystories"]):
+@profile
+def train_on_dataset(dataset_name: Literal["owt", "tinystories"]) -> Tokenizer:
     assert dataset_name in ["owt", "tinystories"]
     in_path = Path(DATASET_TRAIN_PATHS[dataset_name])
     tokenizer = Tokenizer.from_files(
@@ -126,10 +124,10 @@ def train_on_dataset(dataset_name: Literal["owt", "tinystories"]):
         special_tokens=["<|endoftext|>"],
     )
     out_path = Path("tokenizers/")
-    with open(out_path / f"{in_path.stem}_vocab.pkl", "wb") as f:
-        pickle.dump(tokenizer.vocab, f)
-    with open(out_path / f"{in_path.stem}_merges.pkl", "wb") as f:
-        pickle.dump(tokenizer.merges, f)
+    # with open(out_path / f"{in_path.stem}_vocab.pkl", "wb") as f:
+    #     pickle.dump(tokenizer.vocab, f)
+    # with open(out_path / f"{in_path.stem}_merges.pkl", "wb") as f:
+    #     pickle.dump(tokenizer.merges, f)
     return tokenizer
 
 
@@ -148,7 +146,7 @@ def load_tokenizer_for_dataset(dataset: Literal["owt", "tinystories"]) -> Tokeni
 def sample_and_compress(
     dataset: Literal["owt", "tinystories"],
     with_tokenizer_from: Literal["owt", "tinystories"] | None = None,
-):
+) -> None:
     if with_tokenizer_from is None:
         with_tokenizer_from = dataset
     tokenizer = load_tokenizer_for_dataset(with_tokenizer_from)
@@ -165,7 +163,7 @@ def sample_and_compress(
     print(f"Compression ratio for {dataset}: {compression_ratio}")
 
 
-def tokenizer_throughput(dataset: Literal["owt", "tinystories"]):
+def tokenizer_throughput(dataset: Literal["owt", "tinystories"]) -> None:
     tokenizer = load_tokenizer_for_dataset(dataset)
     n_bytes = 2**30
     with open(DATASET_TRAIN_PATHS[dataset], "rb") as f:
@@ -177,8 +175,7 @@ def tokenizer_throughput(dataset: Literal["owt", "tinystories"]):
     print(f"Encoded {n_bytes} bytes in {end - start} seconds")
     print(f"Throughput: {(n_bytes / 1e9) / (end - start)} GB/s")
 
-
-def tokenize_full_dataset(dataset: Literal["owt", "tinystories"]):
+def tokenize_full_dataset(dataset: Literal["owt", "tinystories"]) -> None:
     tokenizer = load_tokenizer_for_dataset(dataset)
     with open(DATASET_TRAIN_PATHS[dataset], "rb") as f:
         text = f.read()
@@ -194,9 +191,9 @@ def tokenize_full_dataset(dataset: Literal["owt", "tinystories"]):
     with open(f"data/{dataset}_valid_tokens.npy", "wb") as f:
         np.save(f, tokens)
 
-
-def test_training():
-    with open("data/bpe_trivial.txt", "r") as f:
+@profile
+def test_training() -> None:
+    with open(TEST_DATASET_PATH, "r") as f:
         text = f.read()
     tokenizer = Tokenizer.from_corpus(text, 256 + 12)
     print(tokenizer.vocab)
@@ -205,7 +202,7 @@ def test_training():
 
 if __name__ == "__main__":
     # test_training()
-    # train_on_dataset("tinystories")
+    train_on_dataset("tinystories")
     # train_on_dataset("owt")
 
     # sample_and_compress('tinystories', 'tinystories')
@@ -217,5 +214,5 @@ if __name__ == "__main__":
     # tokenizer_throughput('tinystories')
     # tokenizer_throughput('owt')
 
-    tokenize_full_dataset("tinystories")
+    # tokenize_full_dataset("tinystories")
     # tokenize_full_dataset('owt')

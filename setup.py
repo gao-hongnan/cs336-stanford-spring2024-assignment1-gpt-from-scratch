@@ -1,10 +1,11 @@
 import io
 import os
+from typing import Any, List
 
-from setuptools import find_packages, setup
+from setuptools import find_packages, setup  # type: ignore[import-untyped]
 
 
-def read(*paths, **kwargs):
+def read(*paths: str, **kwargs: Any) -> str:
     content = ""
     with io.open(
         os.path.join(os.path.dirname(__file__), *paths),
@@ -14,7 +15,7 @@ def read(*paths, **kwargs):
     return content
 
 
-def read_requirements(path):
+def read_requirements(path: str) -> List[str]:
     return [
         line.strip()
         for line in read(path).split("\n")
@@ -23,12 +24,15 @@ def read_requirements(path):
 
 
 setup(
-    name="cs336_basics",
-    version=read("cs336_basics", "VERSION"),
+    name="core",
+    version=read("core", "VERSION"),
     description="CS336: basics",
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests", ".github"]),
     install_requires=read_requirements("requirements.txt"),
-    extras_require={"test": read_requirements("requirements-test.txt")},
+    extras_require={
+        "test": read_requirements("requirements-test.txt"),
+        "lint": read_requirements("requirements-lint.txt"),
+    },
 )
