@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Mapping
 
 import numpy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pathlib import Path
 
 from .adapters import get_adamw_cls, run_load_checkpoint, run_save_checkpoint
 
@@ -72,7 +72,7 @@ def test_checkpointing(tmp_path: str | Path) -> None:
     num_iters = 10
 
     model = _TestNet(d_input=d_input, d_output=d_output)
-    optimizer = get_adamw_cls()( # type: ignore[call-arg]
+    optimizer = get_adamw_cls()(  # type: ignore[call-arg]
         model.parameters(),
         lr=1e-3,
         weight_decay=0.01,
@@ -102,7 +102,7 @@ def test_checkpointing(tmp_path: str | Path) -> None:
 
     # Load the model back again
     new_model = _TestNet(d_input=d_input, d_output=d_output)
-    new_optimizer = get_adamw_cls()( # type: ignore[call-arg]
+    new_optimizer = get_adamw_cls()(  # type: ignore[call-arg]
         new_model.parameters(),
         lr=1e-3,
         weight_decay=0.01,
