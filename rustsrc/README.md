@@ -21,15 +21,15 @@ python core/tokenizer.py
 
 2. `maturin` is used to build PyO3 code, so install that using `pip`:
 
-```sh
-pip install maturin
-```
+   ```sh
+   pip install maturin
+   ```
 
 3. Build and install the Rust code:
 
-```sh
-maturin develop --release
-```
+   ```sh
+   maturin develop --release
+   ```
 
 Builds have been tested extensively on Linux and MacOS.
 
