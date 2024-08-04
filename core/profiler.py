@@ -7,8 +7,6 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Generator
 
-from memory_profiler import profile
-
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s (%(levelname)s): %(message)s"
 )

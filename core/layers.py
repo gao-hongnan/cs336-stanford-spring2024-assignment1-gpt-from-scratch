@@ -83,7 +83,7 @@ class ScaledDotProductAttention(nn.Module):
         attention_scores  = torch.matmul(query, key.transpose(dim0=-2, dim1=-1)) / torch.sqrt(torch.tensor(d_q).float())        # Q @ K.T = [B, H, T, d_q] @ [B, H, d_q, T] = [B, H, T, T]
 
         if mask is not None:
-            mask = mask[:, :, :T, :T]
+            mask = mask[:, :, :T, :T] # type: ignore[assignment]
             attention_scores  = attention_scores.masked_fill(mask == 1, float("-inf")) if mask is not None else attention_scores    # [B, H, T, T]
 
         softmax           = SoftmaxStable(dim=-1)

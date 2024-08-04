@@ -3,17 +3,15 @@ from __future__ import annotations
 import logging
 import pickle
 import time
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Generator, Iterable, Iterator, List, Literal, Tuple, Type
+from typing import Dict, Iterable, Iterator, List, Literal, Tuple, Type
 
 import numpy as np
 import regex as re
 from memory_profiler import profile
-from rich.pretty import pprint
 
-from core.profiler import profile_and_save_stats, timer_block
+from core.profiler import timer_block
 from rustsrc import RustTokenizer, train_bpe
 
 logging.basicConfig(
