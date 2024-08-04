@@ -5,11 +5,7 @@ import pstats
 import time
 from contextlib import contextmanager
 from functools import wraps
-from typing import (
-    Any,
-    Callable,
-    Generator,
-)
+from typing import Any, Callable, Generator
 
 from memory_profiler import profile
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import logging
 import os
@@ -36,7 +37,7 @@ class Trainer:
         *,
         device: torch.device,
         model: nn.Module,
-        criterion: nn.Module,
+        criterion: nn.Module | CrossEntropyLoss,
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler._LRScheduler,
         train_dataloader: np.memmap[npt.NDArray[np.uint16]],
@@ -126,7 +127,6 @@ class Trainer:
             self.optimizer.step()
 
             if self.scheduler is not None:
-                # self.scheduler.step(current_step)
                 lr_or_lrs = self.scheduler(current_step)
                 if isinstance(lr_or_lrs, (float, int)):
                     self.optimizer.param_groups[0]["lr"] = lr_or_lrs

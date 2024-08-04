@@ -12,8 +12,8 @@ import numpy as np
 import regex as re
 from memory_profiler import profile
 from rich.pretty import pprint
-from core.profiler import timer_block, profile_and_save_stats
 
+from core.profiler import profile_and_save_stats, timer_block
 from rustsrc import RustTokenizer, train_bpe
 
 logging.basicConfig(
@@ -33,9 +33,6 @@ DATASET_VALID_PATHS = {
     "tinystories": "data/TinyStoriesV2-GPT4-valid.txt",
 }
 TEST_DATASET_PATH = "tests/fixtures/corpus.en"
-
-
-
 
 
 @dataclass
@@ -114,6 +111,7 @@ class Tokenizer:
     def decode(self, tokens: List[int] | np.ndarray) -> str:
         return self.rust_tokenizer.decode(tokens)
 
+
 @profile
 def train_on_dataset(dataset_name: Literal["owt", "tinystories"]) -> Tokenizer:
     assert dataset_name in ["owt", "tinystories"]
@@ -175,6 +173,7 @@ def tokenizer_throughput(dataset: Literal["owt", "tinystories"]) -> None:
     print(f"Encoded {n_bytes} bytes in {end - start} seconds")
     print(f"Throughput: {(n_bytes / 1e9) / (end - start)} GB/s")
 
+
 def tokenize_full_dataset(dataset: Literal["owt", "tinystories"]) -> None:
     tokenizer = load_tokenizer_for_dataset(dataset)
     with open(DATASET_TRAIN_PATHS[dataset], "rb") as f:
@@ -190,6 +189,7 @@ def tokenize_full_dataset(dataset: Literal["owt", "tinystories"]) -> None:
     tokens = tokenizer.encode(text, as_list=False)
     with open(f"data/{dataset}_valid_tokens.npy", "wb") as f:
         np.save(f, tokens)
+
 
 @profile
 def test_training() -> None:
